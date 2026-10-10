@@ -43,6 +43,7 @@ rm -rf "$OUT"
 mkdir -p "$OUT/bin" "$OUT/share/man/man1" "$OUT/share/bash-completion/completions" \
   "$OUT/share/zsh/site-functions" "$OUT/share/fish/vendor_completions.d"
 cp "$built" "$OUT/bin/rg"
+sh "$REPO_ROOT/build/gate.sh" "$OUT/bin/rg"
 generate() {
   "$gen" --generate "$1" > "$OUT/$2" || { echo "build: rg --generate $1 failed" >&2; exit 1; }
   [ -s "$OUT/$2" ] || { echo "build: rg --generate $1 wrote nothing" >&2; exit 1; }
