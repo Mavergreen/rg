@@ -1,0 +1,76 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      local_release:
+        description: "Cut a -mavericks.(N+1) repackage of the current upstream"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# spec: shipyard SKILL.md "Release workflow" -- a run that can publish is alone in its group
+concurrency:
+  group: >-
+    release-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: macos-26
+    outputs:
+      version: ${{ steps.ver.outputs.full }}
+      publish: ${{ steps.ver.outputs.release }}
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: Mavergreen/shipyard/.github/actions/install@v1
+      - name: Build out of tree
+        run: echo "MAVERICKS_BUILD_ROOT=$RUNNER_TEMP/mm-build" >> "$GITHUB_ENV"
+      - id: ver
+        env:
+          LOCAL_RELEASE: ${{ inputs.local_release }}
+        run: |
+          set -eu
+          mode="$(sh "$SHIPYARD_SCRIPTS/release-mode.sh")"
+          out="$(sh build/version.sh "$mode")"
+          full="$(printf '%s\n' "$out" | sed -n 's/^FULL=//p')"
+          rel="$(printf '%s\n' "$out" | sed -n 's/^RELEASE=//p')"
+          [ -n "$full" ] || { echo "::error::version.sh gave no FULL= line: $out"; exit 1; }
+          case "$GITHUB_EVENT_NAME:$GITHUB_REF" in
+            push:refs/heads/main|workflow_dispatch:*) : ;;
+            *) rel=no ;;
+          esac
+          printf '%s\n' "$full" > VERSION
+          { echo "full=$full"; echo "release=$rel"; } >> "$GITHUB_OUTPUT"
+          echo "version=$full publish=$rel"
+      - name: Record the pre-build tree
+        run: sh "$SHIPYARD_SCRIPTS/assert-tree-clean.sh" --record
+      - name: Tests
+        run: sh "$SHIPYARD_SCRIPTS/run-repo-tests.sh"
+      - name: Release notes
+        run: |
+          set -eu
+          mkdir -p dist
+          V="${{ steps.ver.outputs.full }}"
+          sh "$SHIPYARD_SCRIPTS/release-notes.sh" --tag "$V" --version "$V" \
+            --product ripgrep --min-os 10.9.5 --out dist/RELEASE_NOTES.md
+      - name: The build must not have written into the source tree
+        run: sh "$SHIPYARD_SCRIPTS/assert-tree-clean.sh"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mavergreen-rg
+          path: dist/RELEASE_NOTES.md
+
+  publish:
+    needs: [build]
+    if: needs.build.outputs.publish == 'yes'
+    permissions: { contents: write }
+    uses: Mavergreen/shipyard/.github/workflows/publish-release.yml@v1
+    with: { version: "${{ needs.build.outputs.version }}", artifact: mavergreen-rg }

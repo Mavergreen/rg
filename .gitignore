@@ -3,3 +3,13 @@
 /.superpowers/
 .idea/
 /.idea/
+
+# Packages land in dist/ (declared in .mavericks-intree); everything else builds under
+# $MAVERICKS_BUILD_ROOT, outside this tree.
+/dist/
+
+# The full package version (<upstream>-mavericks.N) is a build product, never committed.
+/VERSION
+
+.DS_Store
+._*
