@@ -36,7 +36,9 @@ version() {
 }
 search() {
   mkdir -p "$w/tree/sub" && printf 'needle\n' > "$w/tree/sub/a.txt" && printf 'hay\n' > "$w/tree/b.txt"
-  [ "$(L "cd '$w/tree' && rg --no-config -l needle")" = sub/a.txt ]
+  # platform: with no path, rg searches stdin whenever stdin is a pipe or a file -- as it is under
+  #           ssh, in mavericks-vm's guest -- and the directory only when stdin is a terminal or device
+  [ "$(L "cd '$w/tree' && rg --no-config -l needle .")" = ./sub/a.txt ]
 }
 manpage() { L 'man -w rg' | grep -q '/usr/local/mavergreen/share/man/man1/rg.1'; }
 uninstall() {
