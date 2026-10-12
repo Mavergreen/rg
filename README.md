@@ -1,7 +1,6 @@
 # `rg` for Mavericks
 
-[ripgrep](https://github.com/BurntSushi/ripgrep) for Mac OS X 10.9 Mavericks. An unofficial
-community build, not affiliated with ripgrep or its author.
+ripgrep for Mac OS X 10.9 Mavericks.
 
 ## Shell completions
 
