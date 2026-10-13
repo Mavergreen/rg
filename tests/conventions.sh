@@ -7,10 +7,6 @@ cd "$ROOT"
 fail() { echo "FAIL conventions: $1"; exit 1; }
 [ -f build/msc.sh ] || fail "no build/msc.sh -- nothing can locate shipyard's scripts"
 . build/msc.sh
-if ! python3 -c 'import yaml' >/dev/null 2>&1; then
-  echo "SKIP conventions: the gate needs python3 with PyYAML, which this host lacks; conventions.yml runs it on every push and PR"
-  exit 77
-fi
 rc=0; out="$(sh "$SHIPYARD_SCRIPTS/check-family-conventions.sh" 2>&1)" || rc=$?
 printf '%s\n' "$out"
 [ "$rc" -eq 0 ] || fail "the family-conventions gate rejects this repo (exit $rc)"
