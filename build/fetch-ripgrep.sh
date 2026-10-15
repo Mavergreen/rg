@@ -11,7 +11,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"; export REPO_ROOT
 INDEX_URL="${RG_INDEX_URL:-https://index.crates.io/ri/pg/ripgrep}"
 CRATE_URL="${RG_CRATE_URL:-https://static.crates.io/crates/ripgrep/ripgrep-$RG_VERSION.crate}"
 
-entries="$(curl -fsSL "$INDEX_URL")" || { echo "fetch-ripgrep: cannot read the crates.io index at $INDEX_URL" >&2; exit 1; }
+entries="$(shipyard_curl "$INDEX_URL" -)" || { echo "fetch-ripgrep: cannot read the crates.io index at $INDEX_URL" >&2; exit 1; }
 [ -n "$entries" ] || { echo "fetch-ripgrep: the crates.io index at $INDEX_URL is empty" >&2; exit 1; }
 vre="$(printf '%s' "$RG_VERSION" | sed 's/[.]/[.]/g')"
 sha="$(printf '%s\n' "$entries" | sed -n "/\"name\":\"ripgrep\",\"vers\":\"$vre\"/s/.*\"cksum\":\"\([0-9a-f]\{64\}\)\".*/\1/p")"
@@ -21,10 +21,10 @@ case "$sha" in
 esac
 
 CACHE="$WORK/src"
-# spec: shipyard scripts/mavericks_fetch.sh usage -- mav_fetch_pinned keeps an existing entry, so the
+# spec: shipyard scripts/mavericks_fetch.sh usage -- shipyard_fetch_pinned keeps an existing entry, so the
 #       caller removes the old tree to extract afresh
 rm -rf "$CACHE/ripgrep-$RG_VERSION"
-mav_fetch_pinned "$CRATE_URL" "$sha" "$CACHE" "ripgrep-$RG_VERSION.crate" \
+shipyard_fetch_pinned "$CRATE_URL" "$sha" "$CACHE" "ripgrep-$RG_VERSION.crate" \
   || { echo "fetch-ripgrep: ripgrep $RG_VERSION failed verification against crates.io's checksum" >&2; exit 1; }
 SRC="$CACHE/ripgrep-$RG_VERSION"
 grep -q "^version = \"$vre\"\$" "$SRC/Cargo.toml" 2>/dev/null \
