@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-26
+    runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.ver.outputs.full }}
       publish: ${{ steps.ver.outputs.release }}
@@ -33,6 +33,8 @@ jobs:
       - uses: Mavergreen/shipyard/.github/actions/install@v1
       - name: Build out of tree
         run: echo "MAVERICKS_BUILD_ROOT=$RUNNER_TEMP/mm-build" >> "$GITHUB_ENV"
+      - name: The 10.9 cargo environment (pinned rust, clang22, SDK)
+        run: sh "$SHIPYARD_SCRIPTS/cargo-env.sh" components/rust >> "$GITHUB_ENV"
       - id: ver
         env:
           LOCAL_RELEASE: ${{ inputs.local_release }}

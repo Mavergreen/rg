@@ -1,5 +1,5 @@
 #!/bin/sh
-# platform: macOS-only -- file and lipo read the Mach-O, and only a Mac runs it
+# platform: host-agnostic -- file and $LIPO (clang22's llvm-lipo off macOS) read the Mach-O; only an x86_64 Mac runs rg
 #   usage: tests/build-test.sh     the built rg is an x86_64 executable of the pinned upstream, with its
 #          generated man page and completions beside it
 set -eu
@@ -7,15 +7,16 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REPO_ROOT="$ROOT"; export REPO_ROOT
 fail() { echo "FAIL build: $1"; exit 1; }
 [ -f "$ROOT/build/build.sh" ] || fail "no build/build.sh"
-grep -q "^unset SDKROOT RUSTFLAGS CARGO_ENCODED_RUSTFLAGS\$" "$ROOT/build/build.sh" \
+grep -q "^unset RUSTFLAGS CARGO_ENCODED_RUSTFLAGS\$" "$ROOT/build/build.sh" \
   || fail "build.sh must clear RUSTFLAGS and CARGO_ENCODED_RUSTFLAGS: cargo prefers either over the per-target flags that carry the 10.9 SDK"
 . "$ROOT/build/versions.sh"
 OUT="$WORK/out"
 RG="$OUT/bin/rg"
 [ -x "$RG" ] || { echo "SKIP build: not built -- run build/build.sh"; exit 77; }
 
-file "$RG" | grep -q 'Mach-O 64-bit executable x86_64' || fail "$RG is not a thin x86_64 executable: $(file "$RG")"
-[ "$(lipo -info "$RG" | sed -n 's/.*architecture: //p')" = x86_64 ] || fail "$RG must carry exactly one slice, x86_64: $(lipo -info "$RG")"
+file "$RG" | grep -Eq 'Mach-O 64-bit (executable x86_64|x86_64 executable)' || fail "$RG is not a thin x86_64 executable: $(file "$RG")"
+L="${LIPO:-lipo}"
+[ "$("$L" -info "$RG" | sed -n 's/.*architecture: //p' | xargs)" = x86_64 ] || fail "$RG must carry exactly one slice, x86_64: $("$L" -info "$RG")"
 
 man="$OUT/share/man/man1/rg.1"
 [ -s "$man" ] || fail "no generated man page at $man"
@@ -26,8 +27,8 @@ for c in share/bash-completion/completions/rg share/zsh/site-functions/_rg share
 done
 grep -q 'rg' "$OUT/share/zsh/site-functions/_rg" || fail "the zsh completion does not complete rg"
 
-if [ "$(uname -m)" != x86_64 ]; then
-  echo "OK build (static checks; the x86_64 rg runs on Mac OS X 10.9 in release.yml's vm-test job, never under Rosetta)"
+if [ "$(uname -s):$(uname -m)" != Darwin:x86_64 ]; then
+  echo "OK build (static checks; the x86_64 rg runs on Mac OS X 10.9 in release.yml's vm-test job, never under Rosetta or off macOS)"
   exit 0
 fi
 ver="$("$RG" --version)" || fail "$RG --version did not run"

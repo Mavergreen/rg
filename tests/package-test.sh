@@ -1,5 +1,5 @@
 #!/bin/sh
-# platform: macOS-only -- pkgutil expands the pkg
+# platform: host-agnostic -- shipyard's pkg_read.sh and stevedore read the pkg, $OTOOL the updater
 #   usage: tests/package-test.sh     the pkg installs rg, its man page and completions, and its updater,
 #          in place, behind the 10.9.5 floor
 set -eu
@@ -13,11 +13,10 @@ set -- "$ROOT"/dist/rg-*.pkg
 [ "$#" -eq 1 ] || fail "dist/ holds $# rg pkgs; one build makes one"
 PKG="$1"
 t="$(mktemp -d "${TMPDIR:-/tmp}/rg-package-test.XXXXXX")"; trap 'rm -rf "$t"' EXIT
-pkgutil --expand "$PKG" "$t/x"
+sh "$SHIPYARD_SCRIPTS/pkg_read.sh" expand "$PKG" "$t/x" || fail "$PKG does not expand"
 comp="$t/x/rg-component.pkg"
 [ -f "$comp/Payload" ] || fail "$PKG has no rg-component.pkg"
-mkdir "$t/root"
-tar -xf "$comp/Payload" -C "$t/root"
+sh "$SHIPYARD_SCRIPTS/pkg_read.sh" payload "$t/x" "$IDENTIFIER" "$t/root" || fail "$PKG's rg component does not extract"
 P="$t/root$PREFIX"
 
 ships_generated_man_and_completions() {
@@ -35,9 +34,9 @@ ships_its_updater() {
   app="$t/root/Library/Application Support/Mavergreen/rg-updater.app"
   [ -d "$app" ] || fail "ships_its_updater: no rg-updater.app"
   [ -f "$t/root/Library/LaunchAgents/dev.mavergreen.rg-updatecheck.plist" ] || fail "ships_its_updater: no update-check LaunchAgent"
-  feed="$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$app/Contents/Info.plist")"
+  feed="$("$(sh "$SHIPYARD_SCRIPTS/fetch_stevedore.sh")" plist get "$app/Contents/Info.plist" SUFeedURL)"
   [ "$feed" = "https://github.com/Mavergreen/rg/releases/latest/download/rg.xml" ] || fail "ships_its_updater: SUFeedURL is $feed"
-  if otool -L "$app/Contents/MacOS/"* | grep -q "$PREFIX"; then fail "ships_its_updater: the updater links the product it updates"; fi
+  if "${OTOOL:-otool}" -L "$app/Contents/MacOS/"* | grep -q "$PREFIX"; then fail "ships_its_updater: the updater links the product it updates"; fi
   sh "$SHIPYARD_SCRIPTS/assert_sparkle_pristine.sh" "$app/Contents/Frameworks/Sparkle.framework" "$(sh "$SHIPYARD_SCRIPTS/fetch_sparkle_framework.sh")" \
     || fail "ships_its_updater: the embedded Sparkle.framework is not the pinned one"
 }

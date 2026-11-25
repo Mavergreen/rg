@@ -1,5 +1,5 @@
 #!/bin/sh
-# platform: macOS-only -- otool, nm and clang read and write Mach-O
+# platform: host-agnostic -- $OTOOL and $NM read Mach-O, and clang22 without its cfg links the fixtures
 #   usage: tests/compat-test.sh     rg is proven 10.9-safe, and the gate refuses a binary that is not
 set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -13,7 +13,7 @@ RG="$WORK/out/bin/rg"
 t="$(mktemp -d "${TMPDIR:-/tmp}/rg-compat-test.XXXXXX")"; trap 'rm -rf "$t"' EXIT
 
 floor_is_10_9() {
-  floors="$(otool -l "$RG" | awk '/LC_VERSION_MIN_MACOSX/{v=1} /LC_BUILD_VERSION/{b=1}
+  floors="$("${OTOOL:-otool}" -l "$RG" | awk '/LC_VERSION_MIN_MACOSX/{v=1} /LC_BUILD_VERSION/{b=1}
     v && $1 == "version" {print $2; v=0} b && $1 == "minos" {print $2; b=0}')"
   [ -n "$floors" ] || fail "floor_is_10_9: rg records no deployment target at all"
   for f in $floors; do
@@ -22,7 +22,7 @@ floor_is_10_9() {
 }
 
 clock_gettime_defined() {
-  nm -m "$RG" | grep -q '(__TEXT,__text) external _clock_gettime$' \
+  "${NM:-nm}" -m "$RG" | grep -q '(__TEXT,__text) external _clock_gettime$' \
     || fail "clock_gettime_defined: rg does not define _clock_gettime, so the toolchain's legacy-support force-load did not reach the link"
 }
 
@@ -30,14 +30,17 @@ gate_accepts_rg() {
   out="$(sh "$G" "$RG" 2>&1)" || fail "gate_accepts_rg: the gate refuses the built rg: $out"
 }
 
-command -v clang >/dev/null 2>&1 || fail "no clang: the gate's refusals cannot be proven without building fixtures, and the build needs a C linker anyway"
 SDK="$(sh "$SHIPYARD_SCRIPTS/fetch_sdk.sh")"
+CL="$(sh "$SHIPYARD_SCRIPTS/fetch_clang22.sh" "$SHIPYARD_SCRIPTS/../components/clang22")" || fail "no clang22 to link the fixtures"
 SHIM_CLOCK='int clock_gettime(int c, void *t) { (void)c; (void)t; return 0; }'
 SHIM_RANDOM='int CCRandomGenerateBytes(void *b, unsigned long n) { (void)b; (void)n; return 0; }'
 fixture() {
   name="$1"; shift
   printf '%s\n' "$@" > "$t/$name.c"
-  clang -arch x86_64 -isysroot "$SDK" -mmacosx-version-min=10.9 -Wl,-U,_os_unfair_lock_lock -o "$t/$name" "$t/$name.c" \
+  # spec: shipyard SKILL.md "The compiler: clang22 on every host" -- without its cfg, so Recaulk does not
+  #       define the very symbols these fixtures must lack
+  "$CL/bin/clang" --no-default-config --target=x86_64-apple-macos10.9 -fuse-ld=lld -isysroot "$SDK" \
+    -Wl,-U,_os_unfair_lock_lock -o "$t/$name" "$t/$name.c" \
     || fail "could not build the $name fixture"
   printf '%s\n' "$t/$name"
 }

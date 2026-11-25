@@ -1,5 +1,5 @@
 #!/bin/sh
-# platform: macOS-only -- shipyard's compat guard reads Mach-O with otool, nm and lipo
+# platform: host-agnostic -- shipyard's compat guard reads Mach-O with $OTOOL, $NM and $LIPO
 #   usage: gate.sh <binary>...     fails unless every binary is 10.9-safe
 set -eu
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"

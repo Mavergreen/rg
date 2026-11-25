@@ -1,11 +1,11 @@
 #!/bin/sh
-# platform: macOS-only -- ditto, pkgbuild and productbuild make the pkg
+# platform: host-agnostic -- shipyard's stage_product.sh, build_component_pkg.sh and set_install_floor.sh make the pkg
 #   usage: package.sh     wraps the gated rg, its man page, completions and updater into
 #          dist/rg-<version>.pkg
 set -eu
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"; export REPO_ROOT
 . "$REPO_ROOT/build/versions.sh"
-# platform: without it, ditto and pkgbuild carry AppleDouble ._ files into the payload
+# platform: without it, a Mac's cp carries AppleDouble ._ files into the payload
 COPYFILE_DISABLE=1; export COPYFILE_DISABLE
 OUT="$WORK/out"
 [ -x "$OUT/bin/rg" ] || { echo "package: no $OUT/bin/rg -- run build/build.sh first" >&2; exit 1; }
@@ -16,10 +16,9 @@ pr="$WORK/pkgroot"; scr="$WORK/pkg-scripts"; comp="$WORK/$SHORT-component.pkg"
 rm -rf "$pr" "$scr" "$comp"
 mkdir -p "$pr$(dirname "$PREFIX")" "$REPO_ROOT/dist"
 rm -f "$REPO_ROOT"/dist/"$SHORT"-*.pkg
-# platform: macOS stamps an undeletable com.apple.provenance on every file a tracked process
-#           writes, and pkgbuild records it as a ._X member; --noextattr drops only the others
-ditto --norsrc --noextattr --noacl "$OUT" "$pr$PREFIX"
-app="$(sh "$REPO_ROOT/build/build-updater.sh")"
+mkdir -p "$pr$PREFIX"
+cp -R "$OUT/." "$pr$PREFIX"
+app="$(sh "$REPO_ROOT/build/build-updater.sh" "$VER" "$WORK/updater")"
 find "$pr" -name '._*' -delete
 sh "$SHIPYARD_SCRIPTS/stage_product.sh" --stage "$pr" --product "$SHORT" --name "ripgrep for Mavericks" \
   --version "$VER" --scripts-out "$scr" --updater-app "$app"

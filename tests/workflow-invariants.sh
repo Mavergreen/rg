@@ -27,6 +27,11 @@ npc="$(code "$W" | grep -c 'persist-credentials: false')"
 [ "$nco" = "$npc" ] || fail "every checkout needs persist-credentials: false ($nco checkouts, $npc without persisted credentials)"
 
 before 'sh build/build.sh' 'sh build/package.sh' "the build (which gates rg as 10.9-safe) must run before packaging"
+build="$(code "$W" | awk '/^  build:/{f=1;print;next} /^  [a-z][a-z-]*:$/{f=0} f')"
+printf '%s\n' "$build" | grep -q 'runs-on: ubuntu-latest' || fail "the build job must run on ubuntu-latest: the pinned rust's Linux toolchain targets 10.9"
+if code "$W" | grep -q 'runs-on: macos'; then fail "release.yml must run no macOS job: rg builds on Linux and runs on 10.9 in vm-test"; fi
+printf '%s\n' "$build" | grep -q 'cargo-env.sh" components/rust' || fail "the build job must take its cargo environment from shipyard's cargo-env.sh with the pinned rust"
+if code "$W" | grep -q 'products: rust'; then fail "release.yml must not install the rust pkg: cargo-env.sh fetches the pinned Linux toolchain"; fi
 before 'sh build/package.sh' 'run-repo-tests.sh' "the tests read the built pkg, so packaging must come first"
 before 'release-notes.sh' 'release-state-record.sh' "the declared state is recorded into the generated notes"
 before 'release-state-record.sh' 'sign_and_appcast.sh' "the notes, state marker included, must be final before the appcast embeds them"
